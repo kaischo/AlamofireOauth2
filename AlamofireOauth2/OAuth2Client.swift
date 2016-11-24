@@ -20,19 +20,19 @@ class OAuth2Client : NSObject {
         self.keychain = Keychain(service: outh2Settings.baseURL)
     }
     
-    private func postRequestHandler(jsonResponse:Any?, error:Error?, token:((_ accessToken:String?) -> Void)) -> Void {
+    private func postRequestHandler(jsonResponse:Any?, error:Error?, token:((_ accessToken:String?, _ jsonResponse:Any?) -> Void)) -> Void {
         if let err = error {
             print(err)
-            token(nil)
+            token(nil, nil)
         } else {
             let accessToken:String = self.retrieveAccessTokenFromJSONResponse(jsonResponse: jsonResponse!)
-            token(accessToken)
+            token(accessToken, jsonResponse)
         }
     }
     
-    func retrieveAuthToken(token:@escaping ((_ accessToken:String?) -> Void)) -> Void {
+    func retrieveAuthToken(token:@escaping ((_ accessToken:String?, _ jsonResponse:Any?) -> Void)) -> Void {
         
-        // We found a token in the keychain, we need to check if it is not expired            
+        // We found a token in the keychain, we need to check if it is not expired
         if let optionalStoredAccessToken:String = self.retrieveAccessTokenFromKeychain() {
             if (self.isAccessTokenExpired()) {
                 if let refreshToken = self.retrieveRefreshTokenFromKeychain() {
@@ -41,7 +41,7 @@ class OAuth2Client : NSObject {
                 }
                 print("WARNING: Access token is expired but no refresh token in keychain!")
             } else {
-                token(optionalStoredAccessToken)
+                token(optionalStoredAccessToken, nil)
                 return
             }
         }
@@ -53,10 +53,10 @@ class OAuth2Client : NSObject {
                 let url:String = self.oauth2Settings.tokenURL
                 
                 let parameters: [String:String] = ["client_id" : self.oauth2Settings.clientID,
-                    "grant_type" : "authorization_code",
-                    "client_secret" : self.oauth2Settings.clientSecret,
-                    "redirect_uri" : self.oauth2Settings.redirectURL,
-                    "code" : optionalAuthCode]
+                                                   "grant_type" : "authorization_code",
+                                                   "client_secret" : self.oauth2Settings.clientSecret,
+                                                   "redirect_uri" : self.oauth2Settings.redirectURL,
+                                                   "code" : optionalAuthCode]
                 
                 Alamofire.request(url, method: .post, parameters: parameters, headers: [
                     "Accept": "application/json",
@@ -71,7 +71,7 @@ class OAuth2Client : NSObject {
                     })
             }
             else {
-                token(nil)
+                token(nil, nil)
             }
         })
     }
@@ -90,7 +90,7 @@ class OAuth2Client : NSObject {
             return UIViewController()
         }
     }
-
+    
     // Retrieves the autorization code by presenting a webView that will let the user login
     private func retrieveAuthorizationCode(authoCode:@escaping ((_ authorizationCode:String?) -> Void)) -> Void{
         
@@ -113,7 +113,7 @@ class OAuth2Client : NSObject {
     
     // Checks if the token that is stored in the keychain is expired
     private func isAccessTokenExpired() -> Bool {
-
+        
         var isTokenExpired: Bool = false
         
         let optionalExpiresIn:NSString? = keychain[kOAuth2ExpiresInService] as NSString?
@@ -127,11 +127,11 @@ class OAuth2Client : NSObject {
             if let creationDate = optionalCreationDate {
                 let creationTimeInterval:TimeInterval = creationDate.doubleValue
                 
-                // need to refresh the token 
+                // need to refresh the token
                 if (NSDate().timeIntervalSince1970 < creationTimeInterval + expiresTimeInterval) {
                     isTokenExpired = false
-                }   
-            }   
+                }
+            }
         }
         
         return isTokenExpired
@@ -146,18 +146,18 @@ class OAuth2Client : NSObject {
     }
     
     // Request a new access token with our refresh token
-    func refreshToken(refreshToken:String, newToken:@escaping ((_ accessToken:String?) -> Void)) -> Void {
+    func refreshToken(refreshToken:String, newToken:@escaping ((_ accessToken:String?, _ jsonResponse:Any?) -> Void)) -> Void {
         
         print("Need to refresh the token with refreshToken : " + refreshToken)
         
         let url:String = self.oauth2Settings.tokenURL
-            
+        
         let parameters: [String:String] = ["client_id" : self.oauth2Settings.clientID,
-            "grant_type" : "refresh_token",
-            "client_secret" : self.oauth2Settings.clientSecret,
-            "redirect_uri" : self.oauth2Settings.redirectURL,
-            "refresh_token" : refreshToken]
-
+                                           "grant_type" : "refresh_token",
+                                           "client_secret" : self.oauth2Settings.clientSecret,
+                                           "redirect_uri" : self.oauth2Settings.redirectURL,
+                                           "refresh_token" : refreshToken]
+        
         Alamofire.request(url, method: .post, parameters: parameters, headers: [
             "Accept": "application/json",
             ])
@@ -173,7 +173,7 @@ class OAuth2Client : NSObject {
     
     // Extract the accessToken from the JSON response that the authentication server returned
     private func retrieveAccessTokenFromJSONResponse(jsonResponse:Any?) -> String {
-
+        
         var result:String = String()
         
         if let jsonResult: NSDictionary = jsonResponse as? NSDictionary {
@@ -184,7 +184,7 @@ class OAuth2Client : NSObject {
                     return result
                 }
             }
-
+            
             let optionalAccessToken : NSString? = jsonResult["access_token"] as? NSString
             let optionalRefreshToken : NSString? = jsonResult["refresh_token"] as? NSString
             let optionalExpiresIn : NSNumber? = jsonResult["expires_in"] as? NSNumber
@@ -208,7 +208,7 @@ class OAuth2Client : NSObject {
         return result
     }
     
-
+    
 }
 
 extension UIApplication {
